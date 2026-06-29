@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Shuffle, Users, AlertTriangle, CheckCircle, Loader2, UserCircle } from 'lucide-react';
 import { useTournament } from '../context/TournamentContext';
-import { DoublesPair, Player, getNightShiftGroup } from '../types';
+import { DoublesPair, Player } from '../types'; // Dihapus getNightShiftGroup karena tidak dipakai di view ini
 
 export function DrawView() {
   const { data, startDraw, showToast } = useTournament();
@@ -21,6 +21,7 @@ export function DrawView() {
     setIsDrawing(true);
     setShuffleAnimation(true);
     setShownPairs([]);
+    setShownSingles([]); // Pastikan singles juga di-reset
     setCurrentIndex(0);
 
     // Start drawing after shuffle animation
@@ -62,13 +63,16 @@ export function DrawView() {
 
   // Initialize shown pairs when draw is already completed
   useEffect(() => {
-    if (data.drawCompleted && data.doublesPairs.length > 0 && shownPairs.length === 0) {
-      setShownPairs(data.doublesPairs);
+    // FIX: Cegah fungsi ini berjalan saat animasi isDrawing sedang aktif
+    if (!isDrawing && data.drawCompleted) {
+      if (data.doublesPairs.length > 0 && shownPairs.length === 0) {
+        setShownPairs(data.doublesPairs);
+      }
+      if (data.womenSinglePlayers.length > 0 && shownSingles.length === 0) {
+        setShownSingles(data.womenSinglePlayers);
+      }
     }
-    if (data.drawCompleted && data.womenSinglePlayers.length > 0 && shownSingles.length === 0) {
-      setShownSingles(data.womenSinglePlayers);
-    }
-  }, [data.drawCompleted, data.doublesPairs, data.womenSinglePlayers, shownPairs.length, shownSingles.length]);
+  }, [data.drawCompleted, data.doublesPairs, data.womenSinglePlayers, shownPairs.length, shownSingles.length, isDrawing]);
 
   return (
     <div className="p-6 space-y-6">
