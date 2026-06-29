@@ -130,7 +130,7 @@ export function PlayerManagement() {
         </div>
         <div className="bg-navy-800/50 rounded-xl border border-navy-700 p-4">
           <p className="text-xs text-gray-400 mb-1">Banyak Single Putri</p>
-          <p className="text-2xl font-bold text-gold-400">{singlePutri.length}/8</p>
+          <p className="text-2xl font-bold text-gold-400">{singlePutri.length}/10</p>
         </div>
         <div className="bg-navy-800/50 rounded-xl border border-navy-700 p-4">
           <p className="text-xs text-gray-400 mb-1">Seeded Players</p>
