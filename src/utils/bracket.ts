@@ -26,26 +26,16 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
   const targetRo16Count = 16;
 
   // Calculate how many pairs get BYE
-  // If we have 26 pairs: need to reduce to 16
-  // Preliminary: 20 pairs play (10 matches) -> 10 winners
-  // BYE: 6 pairs advance directly
-  // 10 + 6 = 16 for Ro16
-
-  // Formula: pairs playing preliminary = 2 * (totalPairs - 16)
-  // BYE = totalPairs - pairs playing preliminary
   let pairsPlayingPrelim = 0;
   let byeCount = 0;
 
   if (totalPairs > targetRo16Count) {
-    // Need preliminary rounds
     pairsPlayingPrelim = 2 * (totalPairs - targetRo16Count);
     byeCount = totalPairs - pairsPlayingPrelim;
   } else if (totalPairs < targetRo16Count) {
-    // Fewer than 16, some Ro16 matches will have BYE
     byeCount = 0;
     pairsPlayingPrelim = 0;
   } else {
-    // Exactly 16 pairs
     byeCount = 0;
     pairsPlayingPrelim = 0;
   }
@@ -54,17 +44,14 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
   const byePairs: DoublesPair[] = [];
   const prelimPairs: DoublesPair[] = [];
 
-  // All seeded pairs get BYE first (up to byeCount)
   const seededForBye = seededPairs.slice(0, byeCount);
   const remainingSeeded = seededPairs.slice(byeCount);
 
   byePairs.push(...seededForBye);
 
-  // Fill remaining BYE slots with non-seeded if needed
   const nonSeededForBye = nonSeededPairs.slice(0, Math.max(0, byeCount - seededForBye.length));
   byePairs.push(...nonSeededForBye);
 
-  // Remaining pairs play preliminary
   const remainingNonSeeded = nonSeededPairs.slice(nonSeededForBye.length);
   prelimPairs.push(...remainingSeeded, ...remainingNonSeeded);
 
@@ -93,35 +80,23 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
   matches.push(...prelimMatches);
 
   // Create Round of 16 bracket
-  // Position seeded/BYE pairs strategically in bracket
-  // Seeded pairs should be spread apart
-
   const ro16Teams: (DoublesPair | undefined)[] = new Array(16).fill(undefined);
 
-  // Position BYE pairs - spread them across bracket
-  // Position 0-1: top bracket, Position 14-15: bottom bracket (final would be opposite)
-  // Seed 1 at position 0 or 1, Seed 2 at position 15 or 14
   const byePositions = [
-    0, 15,  // For top 2 seeds (opposite sides of bracket)
+    0, 15,  // For top 2 seeds
     7, 8,   // For next 2 seeds
     3, 12,  // For next 2
     4, 11   // For next 2
   ];
 
-  // Place BYE pairs in their positions
   for (let i = 0; i < byePairs.length && i < byePositions.length; i++) {
     ro16Teams[byePositions[i]] = byePairs[i];
   }
 
-  // Place preliminary winners in remaining positions (as TBD)
-  // These will be filled after preliminary matches complete
-  // For now, we just need the structure
   const prelimWinnerOrder = [1, 2, 5, 6, 9, 10, 13, 14, 3, 4, 11, 12].filter(pos => {
-    // Exclude positions already taken by BYE
     return !byePairs.some((_, i) => byePositions[i] === pos);
   });
 
-  // Round of 16 matches (8 matches)
   const ro16Matches: Match[] = [];
   for (let i = 0; i < 8; i++) {
     const team1 = ro16Teams[i * 2];
@@ -138,7 +113,6 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
       status: 'pending',
     };
 
-    // Store link to next match (QF)
     match.nextMatchId = `qf-${Math.floor(i / 2)}`;
     match.nextMatchSlot = (i % 2 === 0) ? 1 : 2;
 
@@ -197,7 +171,7 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
 }
 
 /**
- * Generate singles bracket
+ * Generate singles bracket with dynamic sizing and BYE handling
  */
 export function generateSinglesBracket(players: Player[]): Match[] {
   const matches: Match[] = [];
@@ -209,44 +183,123 @@ export function generateSinglesBracket(players: Player[]): Match[] {
   const seededPlayers = players.filter(p => p.seed);
   const nonSeededPlayers = players.filter(p => !p.seed);
 
-  // For 8 player bracket
-  const qfTeams: (Player | undefined)[] = new Array(8).fill(undefined);
+  // Determine bracket size based on participants
+  const isSmallBracket = players.length <= 8;
+  const targetBaseCount = isSmallBracket ? 8 : 16;
 
-  // Position seeded players
-  // Seed 1 at position 0 (top), Seed 2 at position 7 (bottom)
-  if (seededPlayers.length >= 1) qfTeams[0] = seededPlayers[0];
-  if (seededPlayers.length >= 2) qfTeams[7] = seededPlayers[1];
-  if (seededPlayers.length >= 3) qfTeams[3] = seededPlayers[2];
-  if (seededPlayers.length >= 4) qfTeams[4] = seededPlayers[3];
+  let playersPlayingPrelim = 0;
+  let byeCount = 0;
 
-  // Fill remaining with non-seeded
-  let nonSeededIdx = 0;
-  for (let i = 0; i < 8; i++) {
-    if (qfTeams[i] === undefined && nonSeededIdx < nonSeededPlayers.length) {
-      qfTeams[i] = nonSeededPlayers[nonSeededIdx++];
+  if (players.length > targetBaseCount) {
+    playersPlayingPrelim = 2 * (players.length - targetBaseCount);
+    byeCount = players.length - playersPlayingPrelim;
+  } else {
+    byeCount = players.length; 
+    playersPlayingPrelim = 0;
+  }
+
+  const byePlayers: Player[] = [];
+  const prelimPlayers: Player[] = [];
+
+  const seededForBye = seededPlayers.slice(0, byeCount);
+  const remainingSeeded = seededPlayers.slice(byeCount);
+
+  byePlayers.push(...seededForBye);
+
+  const nonSeededForBye = nonSeededPlayers.slice(0, Math.max(0, byeCount - seededForBye.length));
+  byePlayers.push(...nonSeededForBye);
+
+  const remainingNonSeeded = nonSeededPlayers.slice(nonSeededForBye.length);
+  prelimPlayers.push(...remainingSeeded, ...remainingNonSeeded);
+
+  const shuffledPrelim = prelimPlayers.sort(() => Math.random() - 0.5);
+
+  // 1. PRELIMINARY MATCHES (If players > 16)
+  const prelimMatches: Match[] = [];
+  for (let i = 0; i < shuffledPrelim.length; i += 2) {
+    const team1 = shuffledPrelim[i];
+    const team2 = shuffledPrelim[i + 1];
+    if (team1 && team2) {
+      prelimMatches.push({
+        id: generateId(),
+        matchNumber: matchNumber++,
+        category: 'Single Putri',
+        round: 'Preliminary',
+        team1,
+        team2,
+        scores: [],
+        status: 'pending',
+      });
+    }
+  }
+  matches.push(...prelimMatches);
+
+  // 2. MAIN BRACKET
+  if (!isSmallBracket) {
+    // --- LARGE BRACKET (Starts at Round of 16) ---
+    const ro16Teams: (Player | undefined)[] = new Array(16).fill(undefined);
+    
+    const byePositions = [0, 15, 7, 8, 3, 12, 4, 11, 1, 14, 6, 9, 2, 13, 5, 10];
+    for (let i = 0; i < byePlayers.length && i < byePositions.length; i++) {
+      ro16Teams[byePositions[i]] = byePlayers[i];
+    }
+
+    // Round of 16 (8 Matches)
+    for (let i = 0; i < 8; i++) {
+      matches.push({
+        id: generateId(),
+        matchNumber: matchNumber++,
+        category: 'Single Putri',
+        round: 'Round of 16',
+        team1: ro16Teams[i * 2],
+        team2: ro16Teams[i * 2 + 1],
+        scores: [],
+        status: 'pending',
+        nextMatchId: `qf-s-${Math.floor(i / 2)}`,
+        nextMatchSlot: (i % 2 === 0) ? 1 : 2,
+      });
+    }
+    
+    // Empty Quarter Finals slots (4 Matches)
+    for (let i = 0; i < 4; i++) {
+      matches.push({
+        id: `qf-s-${i}`,
+        matchNumber: matchNumber++,
+        category: 'Single Putri',
+        round: 'Quarter Final',
+        scores: [],
+        status: 'pending',
+        nextMatchId: `sf-s-${Math.floor(i / 2)}`,
+        nextMatchSlot: (i % 2 === 0) ? 1 : 2,
+      });
+    }
+  } else {
+    // --- SMALL BRACKET (Starts at Quarter Final) ---
+    const qfTeams: (Player | undefined)[] = new Array(8).fill(undefined);
+    
+    const byePositions = [0, 7, 3, 4, 1, 6, 2, 5];
+    for (let i = 0; i < byePlayers.length && i < byePositions.length; i++) {
+      qfTeams[byePositions[i]] = byePlayers[i];
+    }
+
+    // Quarter Final (4 Matches)
+    for (let i = 0; i < 4; i++) {
+      matches.push({
+        id: `qf-s-${i}`,
+        matchNumber: matchNumber++,
+        category: 'Single Putri',
+        round: 'Quarter Final',
+        team1: qfTeams[i * 2],
+        team2: qfTeams[i * 2 + 1],
+        scores: [],
+        status: 'pending',
+        nextMatchId: `sf-s-${Math.floor(i / 2)}`,
+        nextMatchSlot: (i % 2 === 0) ? 1 : 2,
+      });
     }
   }
 
-  // Quarter Finals (4 matches)
-  for (let i = 0; i < 4; i++) {
-    const team1 = qfTeams[i * 2];
-    const team2 = qfTeams[i * 2 + 1];
-
-    matches.push({
-      id: generateId(),
-      matchNumber: matchNumber++,
-      category: 'Single Putri',
-      round: 'Quarter Final',
-      team1,
-      team2,
-      scores: [],
-      status: 'pending',
-      nextMatchId: `sf-s-${Math.floor(i / 2)}`,
-      nextMatchSlot: (i % 2 === 0) ? 1 : 2,
-    });
-  }
-
-  // Semi Finals (2 matches)
+  // 3. SEMI FINAL (2 Matches)
   for (let i = 0; i < 2; i++) {
     matches.push({
       id: `sf-s-${i}`,
@@ -260,7 +313,7 @@ export function generateSinglesBracket(players: Player[]): Match[] {
     });
   }
 
-  // Final (1 match)
+  // 4. FINAL (1 Match)
   matches.push({
     id: 'final-s',
     matchNumber: matchNumber,
@@ -338,7 +391,7 @@ export function scheduleMatches(matches: Match[], startWeek: number): Match[] {
     const roundMatches = matchesByRound[round];
 
     while (roundMatches.length > 0) {
-      // Take up to 6 matches for this week
+      // Take up to max matches for this week
       const weekMatches = roundMatches.splice(0, TOURNAMENT_INFO.maxMatchesPerWeek);
 
       scheduleWeekMatches(weekMatches, currentWeek);
@@ -352,17 +405,13 @@ export function scheduleMatches(matches: Match[], startWeek: number): Match[] {
   }
 
   // IMPORTANT: Semi Final and Final on the SAME day/week
-  // Schedule both Semi Finals and Final together
   const semiFinals = matchesByRound['Semi Final'];
   const finals = matchesByRound['Final'];
 
   if (semiFinals.length > 0 || finals.length > 0) {
     currentWeek++; // Move to a new week for Semi Final + Final
 
-    // Combine Semi Final and Final matches
     const championshipMatches = [...semiFinals, ...finals];
-
-    // Schedule them on the same week
     scheduleChampionshipMatches(championshipMatches, currentWeek);
     scheduled.push(...championshipMatches);
   }
@@ -378,7 +427,6 @@ export function scheduleMatches(matches: Match[], startWeek: number): Match[] {
  * Night shift matches get priority (earlier times)
  */
 function scheduleWeekMatches(matches: Match[], week: number): void {
-  // Sort: night shift priority first
   matches.sort((a, b) => {
     const priorityA = getMatchPriority(a, week);
     const priorityB = getMatchPriority(b, week);
@@ -407,24 +455,18 @@ function scheduleWeekMatches(matches: Match[], week: number): void {
  */
 function scheduleChampionshipMatches(matches: Match[], week: number): void {
   const startDate = getWeekStartDate(week);
-
-  // Sort: Semi Finals first (they need to complete before Final)
   const roundOrder: TournamentRound[] = ['Semi Final', 'Final'];
+  
   matches.sort((a, b) => {
     return roundOrder.indexOf(a.round) - roundOrder.indexOf(b.round);
   });
 
-  // Schedule Semi Finals at earlier times, Final at later time
-  // Both categories (Ganda Putra and Single Putri) Semi Finals + Finals on same day
   const times = ['19:00', '19:30', '20:00', '20:30', '21:00', '21:30'];
 
-  // Night shift priority for earlier matches
   matches.sort((a, b) => {
-    // Keep Semi Finals before Finals
     const roundDiff = roundOrder.indexOf(a.round) - roundOrder.indexOf(b.round);
     if (roundDiff !== 0) return roundDiff;
 
-    // Within same round, night shift first
     const priorityA = getMatchPriority(a, week);
     const priorityB = getMatchPriority(b, week);
     return priorityA - priorityB;
@@ -434,7 +476,6 @@ function scheduleChampionshipMatches(matches: Match[], week: number): void {
   const semiMatches = matches.filter(m => m.round === 'Semi Final');
   const finalMatches = matches.filter(m => m.round === 'Final');
 
-  // Schedule Semi Finals first (earlier time slots)
   semiMatches.forEach((match, index) => {
     const court = (index % 2) + 1;
     const timeIndex = Math.floor(index / 2);
@@ -448,9 +489,7 @@ function scheduleChampionshipMatches(matches: Match[], week: number): void {
     semiCount++;
   });
 
-  // Schedule Finals after Semi Finals (later time slots)
   finalMatches.forEach((match, index) => {
-    // Finals start after Semi Finals
     const adjustedIndex = semiCount + index;
     const court = (adjustedIndex % 2) + 1;
     const timeIndex = Math.floor(adjustedIndex / 2);
