@@ -1,8 +1,129 @@
-import { Match, DoublesPair, Player, TournamentRound, ShiftGroup, generateId, getNightShiftGroup, getWeekStartDate, TOURNAMENT_INFO } from '../types';
+export type Company = 'Jabil' | 'OCS' | 'ISS' | 'Suksesindo' | 'Intern';
+export type ShiftGroup = 'Non Shift' | 'Grup A' | 'Grup B' | 'Grup C';
+export type Category = 'Ganda Putra' | 'Single Putri';
+export type ShiftType = 'Pagi' | 'Siang' | 'Malam';
 
-interface MatchWithPriority {
-  match: Match;
-  priority: number;
+export interface Player {
+  id: string;
+  name: string;
+  company: Company;
+  shiftGroup: ShiftGroup;
+  seed?: boolean;
+  category: Category;
+}
+
+export interface DoublesPair {
+  id: string;
+  player1: Player;
+  player2: Player;
+  seed?: boolean;
+}
+
+export interface Match {
+  id: string;
+  matchNumber: number;
+  category: Category;
+  round: TournamentRound;
+  team1?: DoublesPair | Player;
+  team2?: DoublesPair | Player;
+  winner?: string;
+  scores: MatchScore[];
+  scheduledDate?: string;
+  scheduledTime?: string;
+  court?: number;
+  status: 'pending' | 'scheduled' | 'completed';
+  week?: number;
+  nextMatchId?: string;
+  nextMatchSlot?: 1 | 2;
+}
+
+export type TournamentRound =
+  | 'Preliminary'
+  | 'Round of 16'
+  | 'Quarter Final'
+  | 'Semi Final'
+  | 'Final';
+
+export interface MatchScore {
+  game1Team1: number;
+  game1Team2: number;
+  game2Team1: number;
+  game2Team2: number;
+  game3Team1?: number;
+  game3Team2?: number;
+}
+
+export interface WeekSchedule {
+  week: number;
+  startDate: string;
+  shiftRotation: ShiftRotation;
+  matches: Match[];
+}
+
+export interface ShiftRotation {
+  [key: string]: ShiftGroup;
+}
+
+export interface TournamentData {
+  players: Player[];
+  doublesPairs: DoublesPair[];
+  womenSinglePlayers: Player[];
+  matches: Match[];
+  schedules: WeekSchedule[];
+  currentWeek: number;
+  drawCompleted: boolean;
+  scheduleGenerated: boolean;
+}
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
+export const COMPANIES: Company[] = ['Jabil', 'OCS', 'ISS', 'Suksesindo', 'Intern'];
+export const SHIFT_GROUPS: ShiftGroup[] = ['Non Shift', 'Grup A', 'Grup B', 'Grup C'];
+export const SHIFT_TYPES: ShiftType[] = ['Pagi', 'Siang', 'Malam'];
+
+export const TOURNAMENT_INFO = {
+  name: 'Jabil Fest 5.0 Badminton Tournament',
+  location: 'Progresif Arena',
+  day: 'Kamis',
+  startTime: '19:00',
+  endTime: '22:00',
+  startDate: '2026-07-02',
+  slogan: 'One Team, One Spirit, One Jabil!',
+  courts: 2,
+  maxMatchesPerCourt: 4,
+  maxMatchesPerWeek: 8,
+};
+
+export const WEEK_ROTATIONS: ShiftRotation[] = [
+  { 'Malam': 'Grup B', 'Siang': 'Grup A', 'Pagi': 'Grup C' },
+  { 'Malam': 'Grup C', 'Siang': 'Grup B', 'Pagi': 'Grup A' },
+  { 'Malam': 'Grup A', 'Siang': 'Grup C', 'Pagi': 'Grup B' },
+];
+
+export function getWeekRotation(week: number): ShiftRotation {
+  const weekIndex = ((week - 1) % 3);
+  return WEEK_ROTATIONS[weekIndex];
+}
+
+export function getNightShiftGroup(week: number): ShiftGroup {
+  const rotation = getWeekRotation(week);
+  return rotation['Malam'];
+}
+
+export function getWeekStartDate(startWeek: number): string {
+  const baseDate = new Date(TOURNAMENT_INFO.startDate);
+  const weekOffset = startWeek - 1;
+  baseDate.setDate(baseDate.getDate() + (weekOffset * 7));
+  return baseDate.toISOString().split('T')[0];
+}
+
+export function generateId(): string {
+  // SUDAH DIPERBAIKI: Menggunakan UUID standar yang diterima Supabase
+  return crypto.randomUUID();
 }
 
 /**
@@ -79,6 +200,11 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
 
   matches.push(...prelimMatches);
 
+  // --- SUDAH DIPERBAIKI: PRE-GENERATE UUIDs UNTUK BRACKET GANDA PUTRA ---
+  const finalId = generateId();
+  const sfIds = [generateId(), generateId()];
+  const qfIds = [generateId(), generateId(), generateId(), generateId()];
+
   // Create Round of 16 bracket
   const ro16Teams: (DoublesPair | undefined)[] = new Array(16).fill(undefined);
 
@@ -111,10 +237,9 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
       team2,
       scores: [],
       status: 'pending',
+      nextMatchId: qfIds[Math.floor(i / 2)],
+      nextMatchSlot: (i % 2 === 0) ? 1 : 2,
     };
-
-    match.nextMatchId = `qf-${Math.floor(i / 2)}`;
-    match.nextMatchSlot = (i % 2 === 0) ? 1 : 2;
 
     ro16Matches.push(match);
   }
@@ -125,13 +250,13 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
   const qfMatches: Match[] = [];
   for (let i = 0; i < 4; i++) {
     const match: Match = {
-      id: `qf-${i}`,
+      id: qfIds[i],
       matchNumber: matchNumber++,
       category: 'Ganda Putra',
       round: 'Quarter Final',
       scores: [],
       status: 'pending',
-      nextMatchId: `sf-${Math.floor(i / 2)}`,
+      nextMatchId: sfIds[Math.floor(i / 2)],
       nextMatchSlot: (i % 2 === 0) ? 1 : 2,
     };
     qfMatches.push(match);
@@ -143,13 +268,13 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
   const sfMatches: Match[] = [];
   for (let i = 0; i < 2; i++) {
     const match: Match = {
-      id: `sf-${i}`,
+      id: sfIds[i],
       matchNumber: matchNumber++,
       category: 'Ganda Putra',
       round: 'Semi Final',
       scores: [],
       status: 'pending',
-      nextMatchId: 'final',
+      nextMatchId: finalId,
       nextMatchSlot: (i === 0) ? 1 : 2,
     };
     sfMatches.push(match);
@@ -159,7 +284,7 @@ export function generateDoublesBracket(pairs: DoublesPair[]): Match[] {
 
   // Final (1 match)
   matches.push({
-    id: 'final',
+    id: finalId,
     matchNumber: matchNumber,
     category: 'Ganda Putra',
     round: 'Final',
@@ -234,6 +359,11 @@ export function generateSinglesBracket(players: Player[]): Match[] {
   }
   matches.push(...prelimMatches);
 
+  // --- SUDAH DIPERBAIKI: PRE-GENERATE UUIDs UNTUK BRACKET SINGLE PUTRI ---
+  const finalIdS = generateId();
+  const sfIdsS = [generateId(), generateId()];
+  const qfIdsS = [generateId(), generateId(), generateId(), generateId()];
+
   // 2. MAIN BRACKET
   if (!isSmallBracket) {
     // --- LARGE BRACKET (Starts at Round of 16) ---
@@ -255,7 +385,7 @@ export function generateSinglesBracket(players: Player[]): Match[] {
         team2: ro16Teams[i * 2 + 1],
         scores: [],
         status: 'pending',
-        nextMatchId: `qf-s-${Math.floor(i / 2)}`,
+        nextMatchId: qfIdsS[Math.floor(i / 2)],
         nextMatchSlot: (i % 2 === 0) ? 1 : 2,
       });
     }
@@ -263,13 +393,13 @@ export function generateSinglesBracket(players: Player[]): Match[] {
     // Empty Quarter Finals slots (4 Matches)
     for (let i = 0; i < 4; i++) {
       matches.push({
-        id: `qf-s-${i}`,
+        id: qfIdsS[i],
         matchNumber: matchNumber++,
         category: 'Single Putri',
         round: 'Quarter Final',
         scores: [],
         status: 'pending',
-        nextMatchId: `sf-s-${Math.floor(i / 2)}`,
+        nextMatchId: sfIdsS[Math.floor(i / 2)],
         nextMatchSlot: (i % 2 === 0) ? 1 : 2,
       });
     }
@@ -285,7 +415,7 @@ export function generateSinglesBracket(players: Player[]): Match[] {
     // Quarter Final (4 Matches)
     for (let i = 0; i < 4; i++) {
       matches.push({
-        id: `qf-s-${i}`,
+        id: qfIdsS[i],
         matchNumber: matchNumber++,
         category: 'Single Putri',
         round: 'Quarter Final',
@@ -293,7 +423,7 @@ export function generateSinglesBracket(players: Player[]): Match[] {
         team2: qfTeams[i * 2 + 1],
         scores: [],
         status: 'pending',
-        nextMatchId: `sf-s-${Math.floor(i / 2)}`,
+        nextMatchId: sfIdsS[Math.floor(i / 2)],
         nextMatchSlot: (i % 2 === 0) ? 1 : 2,
       });
     }
@@ -302,20 +432,20 @@ export function generateSinglesBracket(players: Player[]): Match[] {
   // 3. SEMI FINAL (2 Matches)
   for (let i = 0; i < 2; i++) {
     matches.push({
-      id: `sf-s-${i}`,
+      id: sfIdsS[i],
       matchNumber: matchNumber++,
       category: 'Single Putri',
       round: 'Semi Final',
       scores: [],
       status: 'pending',
-      nextMatchId: 'final-s',
+      nextMatchId: finalIdS,
       nextMatchSlot: (i === 0) ? 1 : 2,
     });
   }
 
   // 4. FINAL (1 Match)
   matches.push({
-    id: 'final-s',
+    id: finalIdS,
     matchNumber: matchNumber,
     category: 'Single Putri',
     round: 'Final',
